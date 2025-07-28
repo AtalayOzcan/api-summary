@@ -1,0 +1,96 @@
+API nedir, ne işe yarar?
+API, farklı yazılım uygulamalarının veya sistemlerin birbirleriyle iletişim kurmasını sağlayan bir arayüzdür. Yani, bir programın başka bir programla "konuşmasını" mümkün kılar.
+
+Basit örnekle açıklamak gerekirse:
+Diyelim bir hava durumu uygulaması var. Bu uygulama, hava durumu verilerini dışarıdan bir kaynaktan (mesela bir hava durumu servisi) almak ister.
+API, bu uygulamanın dış servisle iletişim kurması için belirlenmiş kurallar ve protokoller setidir.
+Uygulama API aracılığıyla servisden güncel hava durumu verisini ister, servis de uygun formatta yanıt verir.
+
+API’nin temel özellikleri:
+Veri alışverişi: Uygulamalar arası veri gönderip alma işlemini kolaylaştırır.
+Standart iletişim: İki sistemin nasıl konuşacağını, hangi verileri nasıl isteyeceğini ve cevaplayacağını belirler.
+Soyutlama: API kullanıcıları, sistemin iç detaylarını bilmeden işlevleri kullanabilir.
+Tekrarlanabilirlik: API’ler standart olduğu için birçok uygulama tarafından tekrar tekrar kullanılabilir.
+
+Web API Nedir?
+Web API, farklı uygulamaların veya sistemlerin internet üzerinden HTTP protokolü aracılığıyla veri alışverişi yapmasını sağlayan arayüzdür.
+HTTP: Web tarayıcılarının ve sunucuların kullandığı iletişim protokolüdür. (GET, POST, PUT, DELETE gibi metotları vardır.)
+Web API, bu protokolü kullanarak, bir uygulamanın başka bir uygulamaya veri göndermesini veya ondan veri almasını sağlar.
+
+Web API’nin Temel Özellikleri:
+İnternet üzerinde çalışır.
+Genellikle REST veya SOAP gibi standart mimariler kullanır.
+Veri formatı olarak genellikle JSON veya XML kullanılır.
+Platform bağımsızdır; farklı programlama dilleri ve sistemler tarafından kullanılabilir.
+
+REST’in Temel Kavramları
+Kaynak (Resource):
+İnternet üzerindeki her şey bir "kaynak" olarak düşünülebilir. Örneğin; kullanıcılar, ürünler, mesajlar, siparişler birer kaynaktır.
+Her kaynağın benzersiz bir URI (Uniform Resource Identifier) adresi vardır. Örnek: https://api.example.com/users/123
+HTTP Metodları:
+REST API, HTTP protokolündeki metodları kullanarak kaynaklar üzerinde işlem yapar.
+En sık kullanılan metodlar:
+
+GET: Veri sorgulamak (veri çekmek) için
+POST: Yeni veri oluşturmak için
+PUT: Var olan veriyi güncellemek için
+DELETE: Veriyi silmek için
+PATCH: Var olan verinin bir kısmını güncellemek için
+
+Stateless (Durumsuzluk):
+REST API, sunucunun her isteği bağımsız ve öncekilerden bağımsız olarak ele aldığı bir mimaridir.
+Yani, sunucu istemcinin önceki isteklerine dair bilgiyi saklamaz. Her istek kendi içinde gerekli tüm bilgiyi taşır.
+
+Temsiller (Representations):
+Kaynaklar farklı formatlarda temsil edilebilir; en yaygınları JSON ve XML’dir.
+API genellikle JSON formatında veri gönderir ve alır çünkü JSON hafiftir ve çoğu programlama dili tarafından kolay işlenir.
+
+URI yapısı:
+Kaynaklar hiyerarşik ve mantıklı URI yapıları ile tanımlanır. Örneğin:
+/users → Tüm kullanıcılar
+/users/5 → ID'si 5 olan kullanıcı
+/users/5/orders → 5 numaralı kullanıcının siparişleri
+
+| HTTP Metodu | İşlem                               | URI Örneği   | Açıklama                                |
+| ----------- | ----------------------------------- | ------------ | --------------------------------------- |
+| GET         | Veri alma                           | /products    | Tüm ürünleri listeler                   |
+| GET         | Belirli veri alma                   | /products/10 | ID'si 10 olan ürünü getirir             |
+| POST        | Yeni veri oluşturma                 | /products    | Yeni ürün ekler                         |
+| PUT         | Var olan veriyi tamamen güncelleme  | /products/10 | ID 10 olan ürünü tamamen değiştirir     |
+| PATCH       | Var olan verinin kısmını güncelleme | /products/10 | ID 10 ürünün bazı alanlarını değiştirir |
+| DELETE      | Veri silme                          | /products/10 | ID 10 ürünü siler                       |
+
+RESTful API Tasarımında İyi Pratikler
+İsimlendirme: Kaynak isimleri çoğul kullanılır (/users, /orders).
+
+HTTP durum kodları: İsteklerin sonucunu belirtmek için doğru HTTP kodları kullanılır.
+Örnekler:
+
+200 OK → Başarılı GET isteği
+201 Created → Başarılı POST ile veri oluşturuldu
+204 No Content → Başarılı DELETE işlemi
+400 Bad Request → İstek hatalı
+404 Not Found → Kaynak bulunamadı
+500 Internal Server Error → Sunucu hatası
+
+Versiyonlama: API geliştirirken sürüm yönetimi önemlidir. URI’da veya header’da versiyon belirtilir. Örnek: /api/v1/users
+
+Filtreleme, sıralama ve sayfalama: Büyük veri setlerinde API’nin performansı ve kullanılabilirliği için desteklenir.
+Örnek: /products?category=electronics&sort=price_asc&page=2
+
+RESTful API Nasıl Çalışır? Basit Akış
+İstemci (client), bir HTTP isteği gönderir (örneğin, GET /users).
+Sunucu, isteği alır ve ilgili kaynağı işler.
+Sunucu, isteğe karşılık JSON formatında veri döner.
+İstemci dönen veriyi işler ve kullanıcıya gösterir.
+
+Örnek JSON Yanıtı
+GET /users/5 isteğine gelen örnek cevap:
+
+{
+  "id": 5,
+  "name": "Atalay Özcan",
+  "email": "atalay.ozcan@example.com",
+  "createdAt": "2025-07-28T12:00:00Z"
+}
+
