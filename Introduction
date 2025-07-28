@@ -1,6 +1,36 @@
 API nedir, ne işe yarar?
 API, farklı yazılım uygulamalarının veya sistemlerin birbirleriyle iletişim kurmasını sağlayan bir arayüzdür. Yani, bir programın başka bir programla "konuşmasını" mümkün kılar.
 
+Minimal API, ASP.NET Core’da, Controller sınıfları, Startup.cs, IActionResult, routing attributes gibi yapılar olmadan doğrudan Program.cs dosyasında basit ve sade bir biçimde HTTP endpoint’leri tanımlamana olanak tanıyan bir yaklaşımdır.
+"Minimal kod, maksimum iş" felsefesiyle REST API'leri oluşturmanı sağlar.
+
+| Özellik                               | Açıklama                                     |
+| ------------------------------------- | -------------------------------------------- |
+| 🔸 Basit yapı                         | Sadece `Program.cs` yeterli                  |
+| 🔸 Hızlı başlangıç                    | Controller, Startup, Service yapısı gerekmez |
+| 🔸 Performans odaklı                  | Gereksiz abstraction yoktur, daha hızlıdır   |
+| 🔸 Geliştirici dostu                  | Az satırla çok iş yapılır                    |
+| 🔸 Test ve küçük servisler için ideal | Mikro servis yapıları için uygundur          |
+
+Örnek MinimalApi
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.MapGet("/", () => "Hello World!");
+app.MapGet("/hello", () => "Merhaba!");
+app.MapGet("/square/{number}", (int number) => number * number);
+
+app.Run();
+
+| Klasik ASP.NET Core                   | Minimal API                    |
+| ------------------------------------- | ------------------------------ |
+| Controller sınıfları gerekir          | Gerekmez                       |
+| `[HttpGet]`, `[Route]` vs kullanılır  | `MapGet`, `MapPost` kullanılır |
+| Startup.cs / ConfigureServices vardır | Gerekmez                       |
+| Daha fazla boilerplate kod            | Daha az, sade yapı             |
+
+
+
 Basit örnekle açıklamak gerekirse:
 Diyelim bir hava durumu uygulaması var. Bu uygulama, hava durumu verilerini dışarıdan bir kaynaktan (mesela bir hava durumu servisi) almak ister.
 API, bu uygulamanın dış servisle iletişim kurması için belirlenmiş kurallar ve protokoller setidir.
@@ -94,3 +124,221 @@ GET /users/5 isteğine gelen örnek cevap:
   "createdAt": "2025-07-28T12:00:00Z"
 }
 
+
+Route Templates (Yol Şablonları) Nedir?
+Web uygulamalarında, özellikle RESTful API veya MVC (Model-View-Controller) yapılarında, gelen HTTP isteklerinin hangi kod bloğuna yönlendirileceğini belirleyen URL kalıplarıdır.
+Yani, URL yapısı nasıl olacak ve URL içindeki hangi parçalar (segmentler) hangi verilere karşılık gelecek, onu tanımlayan yapıdır.
+
+Route Templates’in Alt Başlıkları
+1. Route Parameters (Yol Parametreleri)
+URL içerisinde değişken parçalardır.
+Bu parametreler, URL'deki belirli bir bölümü temsil eder ve değer olarak dinamik bilgi alır.
+Genellikle {parametreAdi} şeklinde tanımlanır. 
+Örnek: /products/{id}
+Burada id bir parametredir.
+İstek /products/5 ise, id = 5 olarak alınır.
+Bu sayede farklı ürünlerin detayları aynı route şablonuyla alınabilir.
+
+2. Optional Parameters (Opsiyonel Parametreler)
+Bazı parametrelerin zorunlu değil, isteğe bağlı olmasını sağlar.
+Parametre adının sonuna ? işareti konur.
+Örnek:/products/{id?}
+Burada id parametresi isteğe bağlıdır.
+/products/5 veya sadece /products istekleri her ikisi de geçerli olur.
+Kodda, id parametresi boş (null) olabilir ve buna göre işlem yapılabilir.
+
+Constraints (Kısıtlamalar)
+Parametrelerin alabileceği değerleri sınırlamak için kullanılır.
+Parametrenin sadece belirli türde veya formattaki değerleri kabul etmesini sağlar.
+Route template içinde süslü parantez içine : ile kısıtlama eklenir.
+
+Yaygın kullanılan constraint örnekleri:
+| Constraint  | Açıklama                     | Örnek                    |
+| ----------- | ---------------------------- | ------------------------ |
+| `int`       | Sadece tam sayı kabul eder   | `{id:int}`               |
+| `bool`      | Sadece boolean değer         | `{flag:bool}`            |
+| `datetime`  | Tarih formatında olmalı      | `{date:datetime}`        |
+| `length(3)` | En fazla 3 karakter          | `{code:length(3)}`       |
+| `regex()`   | Düzenli ifadeye uygun olmalı | `{name:regex(^[a-z]+$)}` |
+
+Özet
+| Kavram              | Tanım                                                   | Örnek URL            | Açıklama                           |
+| ------------------- | ------------------------------------------------------- | -------------------- | ---------------------------------- |
+| Route Parameters    | URL’de dinamik veri olarak kullanılan değişken parçalar | `/users/{userId}`    | `userId` değeri URL’den alınır     |
+| Optional Parameters | Zorunlu olmayan parametreler                            | `/users/{userId?}`   | `userId` olabilir veya olmayabilir |
+| Constraints         | Parametrelerin değer tipini/formunu sınırlayan kural    | `/products/{id:int}` | `id` sadece tam sayı olmalı        |
+
+//Basic Route
+app.MapGet("/users/{userId}/posts/{slug}", (int userId, string slug) =>
+{
+    return $"User ID: {userId}, Post Slug: {slug}";
+});
+
+//Constrained Route Parameters
+app.MapGet("/products/{id:int:min(1):max(100)}", (int id) =>
+{
+   return $"Product ID: {id}";
+});
+
+//Optional Route Parameters
+app.MapGet("/reports/{year?}", (int? year = 2016) =>
+{
+    return $"Report of the year: {year}";
+});
+
+Catch-All Routes (Türkçesi: Yakalama Rotaları veya Tümünü Yakalama Rotaları), web uygulamalarında veya API yönlendirmelerinde, 
+gelen istek URL'sinin belirli bir kalıba uymayan veya önceden tanımlanmamış tüm yolları yakalamak için kullanılan özel bir rota türüdür.
+
+Catch-All Route Nedir?
+Gelen URL’de belirtilen şablona uymayan tüm URL’leri yakalayan route (yol) şablonudur.
+Genellikle daha esnek ve geniş kapsamlı yönlendirme için kullanılır.
+Özellikle 404 sayfası (sayfa bulunamadı) veya dinamik içerik yükleme gibi durumlarda faydalıdır.
+
+Nasıl Çalışır?
+Normalde route’lar spesifik ve belirli kalıplara bağlıdır.
+Catch-All route, URL’nin kalan tüm kısımlarını tek bir parametre olarak alır.
+Bu parametre sayesinde URL’nin geri kalan kısmı string olarak elde edilir.
+
+Örnek (ASP.NET Core’da):
+// Route template: catch-all parametresi **
+[Route("files/{*filepath}")]
+public IActionResult GetFile(string filepath)
+{
+    // filepath parametresi URL'nin files sonrası tüm kısmını içerir
+    return Content("İstenen dosya yolu: " + filepath);
+}
+/files/images/photo.jpg isteği geldiğinde:
+filepath = "images/photo.jpg" olur.
+
+/files/docs/report.pdf isteği geldiğinde:
+filepath = "docs/report.pdf" olur.
+
+Neden Kullanılır?
+Dinamik sayfa veya içerik yükleme (CMS uygulamaları gibi)
+Statik dosyalar veya klasör yapıları için esnek erişim
+Tüm bilinmeyen URL’leri özel olarak yönetmek (404 sayfaları için)
+URL parametrelerini toplu almak
+
+| Terim           | Anlamı                                                         |
+| --------------- | -------------------------------------------------------------- |
+| Catch-All Route | URL’nin kalan tüm kısmını tek parametreyle yakalayan rota tipi |
+| Kullanım Alanı  | Dosya yolları, dinamik içerik, 404 sayfa yönetimi              |
+
+//Catch-all Route Parameter
+app.MapGet("/files/{*filePath}", (string filePath) =>
+{
+    return $"Requested file path: {filePath}";
+});
+
+Query Parameters Nedir?
+Query Parameters (Sorgu Parametreleri), bir HTTP isteğinde URL'nin sonunda, genellikle veri filtrelemek, sıralamak, arama yapmak veya sayfalama gibi işlemler için kullanılan anahtar-değer çiftleridir.
+
+Yapı (Söz Dizimi):
+https://example.com/products?category=electronics&sort=price_asc
+Bu URL’de:
+? → Sorgu parametrelerinin başladığını gösterir.
+category=electronics → category adında bir parametre, değeri electronics
+& → Birden fazla parametre arasında ayraç olarak kullanılır.
+sort=price_asc → sort adında başka bir parametre, değeri price_asc
+
+| Kullanım Alanı          | Açıklama                                    |
+| ----------------------- | ------------------------------------------- |
+| 🔍 Arama                | `?q=telefon` → "telefon" kelimesiyle ara    |
+| 🗂️ Filtreleme          | `?category=books` → Sadece kitapları göster |
+| 🔃 Sıralama             | `?sort=price_desc` → Fiyatına göre sırala   |
+| 📄 Sayfalama            | `?page=2&limit=10` → 2. sayfa, 10 ürün      |
+| 🔧 Ayarlar / seçenekler | `?showDetails=true` → Detayları göster      |
+
+ Örnek URL ve Anlamı:
+https://api.example.com/users?age=30&sort=name_desc&page=2
+Anlamı:
+age=30 → 30 yaşındaki kullanıcıları getir
+sort=name_desc → İsme göre azalan sırala
+page=2 → İkinci sayfadaki sonuçları göster
+
+Özetle:
+Query Parameters, URL’ye ? ile eklenen, veri alma isteklerinde filtreleme, arama, sıralama ve sayfalama gibi işlemleri kontrol etmemizi sağlayan anahtar-değer çiftleridir. 
+Uygulamalarda API endpoint’lerine esneklik ve detaylı sorgu gücü kazandırır.
+
+//Route with Query Parameters
+app.MapGet("/search", (string? q, int page = 1) =>
+{                                                              https://localhost:7053/search?q=dotnet&page=2
+    return $"Searching for {q} on page {page}";
+});  
+**Path kısmında boşluk bırakmamaya özen göstermeli hata almadım fakat 404 çevirdi o yüzden path içinde space yapılmamalı!
+
+
+CRUD API'S
+
+The main code: 
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var blogs = new List<Blog>
+{
+    new Blog { Title = "First Blog", Body = "This is the body of the first blog." },
+    new Blog { Title = "Second Blog", Body = "This is the body of the second blog." }
+};
+
+app.MapGet("/", () => "Hello World!");
+
+app.MapGet("/blogs", () =>
+{
+    return blogs;
+});
+
+app.Run();
+
+public class Blog
+{
+    public required string Title { get; set; }
+    public required string Body { get; set; }
+}
+
+READ CRUDE (GET)
+app.MapGet("/blogs/{id}", (int id) =>
+{
+    if(id >= 1 && id <= blogs.Count)
+    {
+        return Results.Ok(blogs[id - 1]);
+    }
+    else
+    {
+        return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+    }
+});
+
+CREATE CRUDE (POST)
+//Create a new blog
+app.MapPost("/blogs", (Blog blog) =>{ List nesnesi oluşturuyoruz, çünkü listeye yeni eleman eklememiz lazım. Results.Created() ASP.NET Core Minimal API’de HTTP 201 Created yanıtı döndürmek için kullanılan bir yardımcı metottur.
+    blogs.Add(blog);
+    return Results.Created($"/blogs/{blogs.Count -1}", blog);
+});
+
+DELETE CRUDE (DELETE)
+app.MapDelete("/blogs/{id}", (int id) => {
+    if(id >= 1 && id <= blogs.Count)
+    {
+        blogs.RemoveAt(id -1 );
+        return Results.NoContent(); //204 No Content? HTTP 204 durumu, bir isteğin (genelde PUT, DELETE) başarıyla işlendiğini fakat sunucunun döndürecek içeriği olmadığını belirtir.
+    }
+    else    
+    {
+        return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+    }
+});
+
+UPDATE CRUDE (PUT)
+//Update a blog
+app.MapPut("/blogs/{id}", (int id, Blog blog) =>
+{
+    if (id >= 1 && id <= blogs.Count)
+    {
+        blogs[id - 1] = blog; // Update the blog at the specified index
+        return Results.Ok($"Updated: {blog}");
+    }
+    else
+    {
+        return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+    }
+});
