@@ -342,3 +342,517 @@ app.MapPut("/blogs/{id}", (int id, Blog blog) =>
         return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
     }
 });
+
+
+HttpLogging middleware, ASP.NET Core’da istek (request) ve yanıt (response) ile ilgili HTTP bilgilerini loglamak (kayıt altına almak) için kullanılan yerleşik (built-in) bir middleware'dir.
+
+Temel Tanım:
+HttpLoggingMiddleware, HTTP trafiğini incelemek için geliştiricilere yardımcı olur.
+Gelen isteğin ve giden yanıtın bazı detaylarını loglayarak hata ayıklama (debugging), performans izleme veya güvenlik analizleri için veri sağlar.
+
+Dikkat Edilmesi Gerekenler
+Geliştirme ortamında çok faydalıdır. Üretim ortamında dikkatli kullanılmalıdır çünkü:
+Hassas verileri loga yazılabilir (şifre, token vb.).
+Performans etkilenebilir.
+Loglar şişebilir (özellikle RequestBody ve ResponseBody aktifse).
+
+Ne Zaman Kullanılır?
+API geliştirme sürecinde gelen/giden veriyi görmek istiyorsan.
+Hatalı istekleri incelemek, örneğin 400 ya da 500 hatalarında ne gönderilmiş görmek istiyorsan.
+Performans ya da güvenlik analizleri için log toplamak istiyorsan.
+Log, güvenlik kamerası gibi: Sürekli kayıt alır, sonra açıp ne olduğunu görebilirsin.
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddHttpLogging((o) => { }); // Configure HttpLogging options if needed
+var app = builder.Build();
+app.UseHttpLogging();// Use the HttpLogging middleware
+app.MapGet("/", () => "Hello World!");
+app.Run();
+
+Ayrıca appsetting.json dosyasının içine şu satırı ekliyoruz. 
+
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning",
+      "Microsoft.AspNetCore.HttpLogging.HttpLoggingMiddleware": "Information" //EKLENEN SATIR
+    }
+  },
+  "AllowedHosts": "*"
+}
+
+ASP.NET Core'da Pipeline (İşlem Boru Hattı) nedir?
+ASP.NET Core’da pipeline, bir HTTP isteğinin (request) uygulamaya girdikten sonra işlem göreceği middleware zinciridir.
+
+Bu zincirden geçen her middleware:
+İsteği değiştirebilir
+Kendi görevini yapabilir (örneğin loglama, yetki kontrolü)
+Bir sonraki middleware'e paslayabilir
+Veya zinciri burada kesebilir (örneğin hata döner)
+
+İstek-Response Akışı (Request → Middleware → Response)
+Tarayıcıdan GET /home isteği gönderilir.
+Bu istek ASP.NET Core pipeline'a girer.
+Sırasıyla tüm app.Use(...) middleware’leri çalışır.
+Her middleware isterse:
+İşlemini yapar
+await next(); çağırarak bir sonrakine geçer
+Sonunda bir yanıt oluşturulur (Response) ve pipeline'dan geri yukarıya doğru döner.
+
+📦 Örnek Middleware Zinciri
+app.UseHttpsRedirection();    // 1. middleware → HTTP'yi HTTPS'e yönlendirir
+app.UseRouting();             // 2. middleware → URL'yi analiz eder
+app.UseAuthentication();      // 3. middleware → Kimlik doğrulaması yapar
+app.UseAuthorization();       // 4. middleware → Yetki kontrolü yapar
+app.UseEndpoints(...);        // 5. middleware → Endpoint'i çalıştırır (örneğin controller)
+
+Neden Bu Sistem Kullanılıyor?
+Modülerlik: Her görev kendi middleware'inde tanımlanır.
+Esneklik: İstediğin middleware’i kolayca ekleyebilir/çıkartabilirsin.
+Kontrol: Zincirin hangi noktasında ne olduğunu görebilirsin.
+Performans: Gereksiz işler yapılmaz; zincir erken kesilebilir.
+
+Pipeline, gelen HTTP isteklerinin bir işlem tüneline (boru hattına) sokulmasıdır.
+Bu tünelde her middleware kendi işini yapar veya durumu bir sonrakine devreder.
+
+"Pipeline bir sıralama mekanizması. Önce hangi middleware'i seçeceğim, neyi yapmasını söyleyeceğim... Sıralamayı kurduğumda aslında bir pipeline yaratmış oluyorum."
+
+app.UseMiddleware1();
+app.UseMiddleware2();
+app.UseMiddleware3(); gibi her app.Use(...), pipeline'a bir middleware ekler ve bu sıralama, isteğin işlenme sırasını belirler.
+
+Basit Mantık:
+Pipeline = "İstek geldiğinde şunları şu sırayla yap:"
+Redirect mi edeceğim? → app.UseHttpsRedirection()
+Statik dosya mı? → app.UseStaticFiles()
+Rotalar çalışsın mı? → app.UseRouting()
+Giriş yapıldı mı? → app.UseAuthentication()
+Yetkisi var mı? → app.UseAuthorization()
+Uygulama ne cevap verecek? → app.UseEndpoints(...)
+
+Sonuç:
+Pipeline: Middleware zinciridir.
+Sen middleware'leri app.Use() ile sıralarsın.
+Bu sıralama, her HTTP isteğinin nasıl işleneceğini belirler.
+İlk gelen middleware, önce çalışır; await next() diyerek zinciri devam ettirir.
+İstersen zinciri bir yerde kesebilirsin (örneğin: app.Run()).
+
+app.Use(async (context, next) =>
+{
+    //logic here
+    await next.Invoke();
+    //logic here
+});
+Bu kod, app.Use(...) ile anonim (isimsiz) bir middleware tanımlar.
+
+İşte bu yapı şunu yapar:
+context → Gelen HTTP isteği (HttpContext)
+next → Zincirdeki bir sonraki middleware’i temsil eder
+await next.Invoke() → Zinciri bir sonrakine geçirir
+
+Ne işe yarar?
+İstek geldiğinde bu middleware çalışır.
+Kendi başına bir şey yapmaz, sadece zinciri devam ettirir.
+Genellikle öncesinde veya sonrasında işlem yapılır.
+
+Yani bu custom middleware ayrıca içerisinde birden fazla mantık sırası kurabilirim.
+
+Middleware akış sıralaması iu şekilde oluyor.
+
+app.Use(async (context, next) =>
+{
+    Console.WriteLine("Before LOGİC 100");
+    await next.Invoke();
+    Console.WriteLine("After LOGİC 100");
+});                                        İlk sırada 1)BEFORE 100 2)BEFORE 200 3)AFTER 200 4) AFTER 100 
+app.Use(async (context, next) =>
+{
+    Console.WriteLine("Before LOGİC 200");
+    await next.Invoke();
+    Console.WriteLine("After LOGİC 200");
+});
+
+ControllerBase Nedir?
+ControllerBase, ASP.NET Core’da sadece API geliştiren controller’lar için hazırlanmış bir soyut sınıftır (abstract class).
+
+public class MyApiController : ControllerBase
+{
+    // API endpoint'leri buraya yazılır
+}
+Neden ControllerBase Miras Alınır?
+ControllerBase, sana şu hazır yetenekleri kazandırır:
+| Özellik                                                                          | Açıklama |
+| -------------------------------------------------------------------------------- | -------- |
+| ✅ `[Route]`, `[HttpGet]`, `[HttpPost]` gibi attribute'lar kullanılabilir olur    |          |
+| ✅ `ModelState` kontrolü yapılabilir                                              |          |
+| ✅ `Ok()`, `BadRequest()`, `NotFound()` gibi hazır yanıt metodları kullanılabilir |          |
+| ✅ `Request`, `Response`, `User`, `HttpContext` gibi özelliklere erişim sağlanır  |          |
+| ✅ `ActionResult<T>` dönüşleriyle standart API yapıları sunulur                   |          |
+
+ASP NET CORE WEB API PRODUCT SINIFI
+
+namespace MyFirstWebApi.Models
+{
+    public class Product
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public decimal Price { get; set; }
+    }
+}
+
+ASP NET CORE WEB API CONTROLLER SINIFI
+
+namespace MyFirstWebApi.Controllers
+{
+    using Microsoft.AspNetCore.Mvc;
+    using MyFirstWebApi.Models;
+    using System.Collections.Generic;
+    using System.Linq;
+
+    [Route("api/products")]
+    [ApiController]
+    public class ProductController : ControllerBase 
+    {
+        private static List<Product> products = new List<Product>();
+
+        [HttpGet]// Route to get all products
+        public ActionResult<List<Product>> GetAll() => products; // Returns all products
+
+        
+        [HttpGet("{id}")]// Route to get a product by ID
+        public ActionResult<Product> GetById(int id)
+        {
+            var product = products.FirstOrDefault(p => p.Id == id); // Finds product by ID 
+            return product !=null ? Ok(product) : NotFound(); // Returns product by ID or 404 if not found
+        }
+
+        [HttpPost] // Route to create a new product
+        public ActionResult<Product> Create(Product newProduct)
+        {
+            newProduct.Id = products.Count + 1; // Assigns a new ID based on the current count
+            products.Add(newProduct); // Adds the new product to the list
+            return CreatedAtAction(nameof(GetById), new { id = newProduct.Id }, newProduct); // Returns 201 Created with the new product
+        }
+
+        [HttpPut("{id}")] // Route to update an existing product
+        public ActionResult Update(int id, Product updatedProduct)
+        {
+            var product = products.FirstOrDefault(p => p.Id == id); // Finds product by ID
+            if (product == null) return NotFound(); // Returns 404 if product not found
+
+            product.Name = updatedProduct.Name; // Updates product properties
+            product.Description = updatedProduct.Description;
+            product.Price = updatedProduct.Price;
+            return Ok(product); // Returns the updated product
+        }
+
+        [HttpPatch("{id}")] // Route to partially update a product
+        public ActionResult MiniUpdate(int id, Product miniUpdatedProduct)
+        {
+            var product = products.FirstOrDefault(p => p.Id == id);
+            if (product == null) return NotFound();
+
+            product.Id = miniUpdatedProduct.Id; // Updates only the price
+            return Ok(product); // Returns the updated product
+        }
+
+        [HttpDelete("{id}")] // Route to delete a product
+        public ActionResult Delete(int id)
+        {
+            var product = products.FirstOrDefault(p => p.Id == id); // Finds product by ID
+            if (product == null) return NotFound(); // Returns 404 if product not found
+
+            products.Remove(product); // Removes the product from the list
+            return NoContent(); // Returns 204 No Content
+        }
+
+    }
+}
+
+LINQ Nedir?
+LINQ (Language Integrated Query) = “Dile Entegre Edilmiş Sorgu” anlamına gelir.
+
+C# gibi .NET dillerinde;
+Listeler,
+Diziler,
+Veritabanı tabloları,
+JSON,
+XML gibi veriler üzerinde
+SQL'e benzer bir yapıyla arama, filtreleme, sıralama, seçme, gruplama gibi işlemleri yapmamızı sağlar.
+
+LINQ Ne Amaçla Kullanılır?
+LINQ’in amacı:
+
+Koleksiyonlar (örneğin List<Product>) üzerinde veri işleme işlerini daha sade, okunabilir ve güvenli hale getirmektir.
+
+Geleneksel Yöntem
+List<Product> result = new List<Product>();
+foreach (var p in products)
+{
+    if (p.Price > 1000)
+        result.Add(p);
+}
+
+LINQ ile
+var result = products.Where(p => p.Price > 1000).ToList();
+
+LINQ Hangi senaryolarda gerekli?
+| Senaryo                    | Açıklama                                               |
+| -------------------------- | ------------------------------------------------------ |
+| 🔍 **Filtreleme**          | `Where()` ile belli koşullardaki verileri seçme        |
+| 🔢 **Sıralama**            | `OrderBy()` veya `OrderByDescending()`                 |
+| 🔁 **Arama**               | `FirstOrDefault()`, `Find()` gibi                      |
+| 📊 **Gruplama**            | `GroupBy()` kullanarak istatistik                      |
+| 🎯 **Seçim / Projeksiyon** | `Select()` ile sadece bazı alanları almak              |
+| 🧩 **Birleştirme (Join)**  | Farklı koleksiyonları SQL gibi birleştirme             |
+| 📚 **Aggregate işlemler**  | `Count()`, `Sum()`, `Average()` gibi toplama işlemleri |
+
+Özetle:
+LINQ, daha temiz ve sade kod yazmak içindir.
+Koleksiyonları sorgulamak için kullanılır.
+List, Array, Dictionary, EF DbContext gibi veri koleksiyonları üzerinde işlem yaparken çok gereklidir.
+Özellikle backend geliştirme, veri işleme, API ve raporlama sistemleri gibi senaryolarda neredeyse kaçınılmazdır.
+
+Kodumda Olan Linq
+FirstOrDefault
+var product = products.FirstOrDefault(p => p.Id == id);
+Ne yapar?
+products listesinden Id'si eşleşen ilk ürünü bulur.
+Yoksa null döner.
+
+LINQ ifadelerinde genelde şu yapılar kullanılır:
+Where(...) → Filtreleme (birden fazla sonucu döner)
+FirstOrDefault(...) → İlk uyumlu sonucu döner, yoksa null
+Any(...) → En az bir tane uyumlu eleman var mı diye bakar (bool döner)
+Select(...) → Liste içinden belirli alanları seçer
+OrderBy(...) / OrderByDescending(...) → Sıralama
+
+Interface Nedir?
+Interface, bir sınıfın (class) hangi metotları ve özellikleri (property) içermesi gerektiğini tanımlayan, ama kendisi bu metotların içini yazmayan (implementation içermeyen) yapıdır.
+
+Amaç:
+Sözleşme (contract) gibi düşün.
+Bir interface, “Bu metotlar mutlaka bu sınıfta olacak” der.
+Nasıl yapılacağı ise sınıfa bırakılır.
+
+Neden Kullanılır?
+Farklı sınıfların aynı metotları tutmasını sağlamak için.
+Kodda esneklik, modülerlik ve test edilebilirlik için.
+Polimorfizm (çok biçimlilik) için temel yapı.
+
+Syntax (Örnek)
+public interface IHayvan
+{
+    void SesCikar();
+}
+Burada IHayvan isimli bir interface var.
+SesCikar() metodu kesinlikle bu interface’i implemente eden sınıflarda olacak ama nasıl çalışacağı sınıflara kalmış.
+
+Interface’i Kullanan Sınıflar:
+public class Kedi : IHayvan
+{
+    public void SesCikar()
+    {
+        Console.WriteLine("Miyav");
+    }
+}
+
+public class Kopek : IHayvan
+{
+    public void SesCikar()
+    {
+        Console.WriteLine("Hav");
+    }
+}
+
+Avantajları:
+Kodun bağımlılığını azaltır (loosely coupled olur).
+Farklı sınıflar aynı interface’i implemente edebilir.
+Testlerde mock nesne oluşturmayı kolaylaştırır.
+Büyük projelerde farklı modülleri standartlaştırır.
+
+| Interface                       | Sınıf (Class)                          |
+| ------------------------------- | -------------------------------------- |
+| Sadece metot ve property imzası | Metotların ve özelliklerin içini yazar |
+| Sözleşme (contract)             | Sözleşmeye uyan somut nesne            |
+| Çoklu implemente edilebilir     | Tekil implementasyon                   |
+
+readonly Nedir?
+readonly, bir alanın (field) değerinin sadece:
+Tanımlandığı anda (field tanımı sırasında)
+Constructor (yapıcı metod) içinde
+atanmasına izin verir. Bunların dışında değiştirilmesi yasaktır.
+
+🎯 Ne İşe Yarar?
+Bir değerin nesne oluşturulduktan sonra değiştirilememesini garanti altına alır.
+Immutable (değişmez) nesneler veya sabitlik isteyen senaryolarda çok kullanılır.
+const ile farkı: const tamamen sabittir ve compile time'da değeri bilinir, readonly ise runtime'da constructor’da belirlenebilir.
+
+public class Product
+{
+    public readonly string Brand;
+
+    public Product(string brand)
+    {
+        Brand = brand; // ✅ Sadece constructor içinde atanabilir
+    }
+
+    public void ChangeBrand(string newBrand)
+    {
+        // Brand = newBrand; ❌ Derleme hatası verir!
+    }
+}
+
+const vs readonly
+| Özellik             | `const`                            | `readonly`                               |
+| ------------------- | ---------------------------------- | ---------------------------------------- |
+| Ne zaman atanır     | Derleme zamanında (`compile time`) | Çalışma zamanında (`runtime`)            |
+| Nerede atanabilir   | Tanımlandığı yerde                 | Tanımlandığı yerde veya constructor’da   |
+| Değiştirilebilir mi | Hayır                              | Hayır (sadece constructor’da atanabilir) |
+| Kullanım amacı      | Değişmez sabit değerler            | Nesne başına değişmeyecek değerler       |
+
+Ne Zaman Kullanılır?
+Aynı nesne için değişmemesi gereken ama farklı nesneler için farklı olabilecek değerlerde.
+Örneğin id, createdAt, initialStatus gibi verilerde çok yaygındır
+
+ÖRNEK DEPENDENCY INJECTION
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddTransient<IMyService, MyService>();
+
+var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    var myService = context.RequestServices.GetRequiredService<IMyService>();
+    myService.LogCreation("Middleware invoked First");
+    await next.Invoke();
+});
+
+app.Use(async (context, next) =>
+{
+    var myService = context.RequestServices.GetRequiredService<IMyService>();
+    myService.LogCreation("Middleware invoked Second");
+    await next.Invoke();
+});
+
+app.MapGet("/", (IMyService myService) =>
+{
+    myService.LogCreation("MyService instance created");
+    return Results.Ok("Hello, World! MyService instance created successfully.");
+});
+
+app.Run();
+
+public interface IMyService
+{
+    void LogCreation(string message);
+}
+
+public class MyService : IMyService
+{
+    private readonly int _serviceId;
+
+    public MyService()
+    {
+        _serviceId = new Random().Next(100000, 999999);
+    }
+
+    public void LogCreation(string message)
+    {
+        Console.WriteLine($"{message} - Service ID: {_serviceId}");
+    }
+}
+
+. builder.Services.AddTransient<IMyService, MyService>();
+📌 Anlamı:
+Bu satırda IMyService interface’ini MyService sınıfı ile eşleştiriyoruz.
+Transient olarak kaydediyoruz, yani:
+Bu servis her istendiğinde yeni bir MyService örneği oluşturulacak.
+
+📦 Neden burada yazıyoruz?
+builder.Services nesnesi ASP.NET Core'un yerleşik DI konteyneridir.
+AddTransient, AddScoped, AddSingleton gibi metodlarla servis yaşam süresi belirlenir.
+| Yaşam Süresi | Anlamı                         |
+| ------------ | ------------------------------ |
+| `Transient`  | Her kullanımda yeni nesne      |
+| `Scoped`     | HTTP isteği başına bir nesne   |
+| `Singleton`  | Tüm uygulama boyunca tek nesne |
+
+Interface & Sınıf: IMyService ve MyService
+public interface IMyService
+{
+    void LogCreation(string message);
+}
+
+public class MyService : IMyService
+{
+    private readonly int _serviceId;
+
+    public MyService()
+    {
+        _serviceId = new Random().Next(100000, 999999);
+    }
+
+    public void LogCreation(string message)
+    {
+        Console.WriteLine($"{message} - Service ID: {_serviceId}");
+    }
+}
+Ne Anlama Geliyor?
+IMyService: Bir interface tanımıdır. Ne yapılacağını söyler.
+MyService: Onu uygulayan (implement eden) somut sınıftır. Ne yapılacağını anlatan interface’in nasıl yapılacağını içerir.
+
+DI Neden Interface ister?
+Gelecekte MyService yerine başka bir sınıf (MockMyService, LoggingService vs.) kullanılabilir.
+Gevşek bağlı (loosely coupled) ve test edilebilir sistemler inşa edilir.
+
+ÖZETLE
+| Bölüm                            | Görev                                |
+| -------------------------------- | ------------------------------------ |
+| `builder.Services.AddTransient`  | DI sistemine kayıt (bağlantı kurma)  |
+| `IMyService` interface           | Bağımlılık noktası                   |
+| `MyService` class                | Somut bağımlılık (implementation)    |
+| `context.RequestServices...`     | DI konteyner'dan elle alma           |
+| `app.MapGet("/", (IMyService...` | DI ile doğrudan injection (otomatik) |
+
+Middleware Kısmı
+app.Use(async (context, next) =>
+{
+    var myService = context.RequestServices.GetRequiredService<IMyService>();
+    myService.LogCreation("Middleware invoked First");
+    await next.Invoke();
+});
+Bu app.Use(...) ne işe yarıyor?
+ASP.NET Core’da app.Use(...), Middleware eklemek için kullanılır.
+Middleware: HTTP isteği geldiğinde işlem yapabilen bir ara katmandır.
+Bu kod, gelen her HTTP isteğinde devreye giren bir parçadır.
+
+1. app.Use(async (context, next) => { ... })
+Yeni bir anonim middleware tanımlıyoruz.
+context: İsteğe dair tüm bilgileri barındıran HttpContext nesnesidir.
+next: Sıradaki middleware’i temsil eder. await next.Invoke(); yazmazsak zincir kırılır.
+
+2. var myService = context.RequestServices.GetRequiredService<IMyService>();
+Bu satır ne yapar?
+context.RequestServices: HTTP isteği için geçerli olan DI konteyner’ı döner.
+GetRequiredService<IMyService>(): DI sisteminden IMyService tipinde bir nesne ister.
+
+3. myService.LogCreation("Middleware invoked First");
+Az önce alınan MyService nesnesinin LogCreation metodunu çağırıyoruz.
+Bu sayede o middleware'in çalıştığı anda servis örneği yaratılır ve mesaj konsola yazılır.
+
+4. await next.Invoke();
+Bu satır olmazsa zincirdeki bir sonraki middleware çalışmaz.
+Yani sonraki app.Use(...) veya app.MapGet(...) çalışmaz.
+await ile çağrılması, asenkron işlemleri düzgün yönetmek içindir.
+
+| Kod Parçası                        | Görevi                                     |
+| ---------------------------------- | ------------------------------------------ |
+| `context.RequestServices`          | O anki HTTP isteğine özel DI konteyner     |
+| `GetRequiredService<IMyService>()` | Servisi konteyner'dan çek (yoksa hata ver) |
+| `LogCreation(...)`                 | Servis örneğini kullandırarak işlem yap    |
+| `await next.Invoke()`              | Zincirdeki bir sonraki middleware'e geç    |
