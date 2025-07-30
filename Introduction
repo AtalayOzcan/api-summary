@@ -856,3 +856,71 @@ await ile çağrılması, asenkron işlemleri düzgün yönetmek içindir.
 | `GetRequiredService<IMyService>()` | Servisi konteyner'dan çek (yoksa hata ver) |
 | `LogCreation(...)`                 | Servis örneğini kullandırarak işlem yap    |
 | `await next.Invoke()`              | Zincirdeki bir sonraki middleware'e geç    |
+
+
+try-catch Bloğu Nedir? Amacı Nedir?
+try-catch, C# ve ASP.NET Core dahil birçok dilde kullanılan bir hata yakalama yapısıdır. Amaç:
+Hata (exception) oluşabilecek kodları try bloğuna almak.
+Hata olursa, uygulamanın çökmesini engellemek ve hata durumunu kontrol etmek.
+Hatalı duruma uygun bir tepki (mesaj, log, yönlendirme, vs.) vermek.
+
+Basit Mantığı
+try
+{
+    // Hata çıkabilecek kodlar buraya
+}
+catch (Exception ex)
+{
+    // Hata olursa burası çalışır
+}
+
+0'A BÖLME ÖRNEĞİ
+try
+{
+    int a = 10;
+    int b = 0;
+    int sonuc = a / b; // Burada hata olur
+    Console.WriteLine("Sonuç: " + sonuc);
+}
+catch (DivideByZeroException ex)
+{
+    Console.WriteLine("Sıfıra bölme hatası: " + ex.Message);
+}
+
+Global Error Handling Nedir?
+Global error handling (küresel hata yönetimi):
+Uygulama genelinde oluşabilecek tüm hataları merkezi bir noktada yakalamayı sağlar.
+Tek tek her endpoint’e try-catch yazmak yerine, ortak bir hata yakalama mekanizması kurulmuş olur.
+Özellikle web projelerinde, kullanıcıya "Sunucu hatası", "Lütfen tekrar deneyin" gibi anlamlı mesajlar göstermek için kullanılır.
+
+Örnek
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(); // İsteği bir sonraki middleware'e gönder
+    }
+    catch (DivideByZeroException ex)
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsJsonAsync(new { error = "Sıfıra bölme hatası oluştu!" });
+    }
+    catch (Exception ex)
+    {
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsJsonAsync(new { error = "Bir hata oluştu. Lütfen tekrar deneyin." });
+    }
+});
+
+// === Örnek Endpoint ===
+app.MapGet("/bol", (int a, int b) =>
+{
+    return Results.Ok(a / b); // b = 0 girilirse hata oluşur
+});
+
+ASP.NET Core’da Logging (Kayıt Tutma) Nedir?
+Logging, uygulamada olan olayların (örneğin hatalar, uyarılar, bilgi mesajları) kaydını tutmaktır. Bu sayede:
+Hatalar tespit edilir,
+Davranışlar izlenir,
+Sistem izleme/log sunucularına veri gönderilir (örnek: Serilog, Seq, Kibana vs.).
+
