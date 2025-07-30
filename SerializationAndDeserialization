@@ -1,0 +1,245 @@
+Serialization (Serileştirme), bir nesnenin bellekteki halini düz bir veri formatına (örneğin JSON, XML veya ikili bir format) çevirme işlemidir. Bu işlem sayesinde bir nesne:
+Dosyaya yazılabilir,
+Ağ üzerinden gönderilebilir,
+Veritabanına kaydedilebilir,
+Başka sistemlere taşınabilir hale gelir.
+
+Serialization Nedir?
+Tanım: Serialization, bir nesnenin durumunun (property değerlerinin) düz bir formatta temsil edilmesidir. Böylece bu nesne başka bir ortama taşınabilir veya kalıcı hale getirilebilir.
+
+Amacı Nedir?
+Serialization’ın temel amacı, verinin taşınabilir ve kalıcı hale getirilmesidir. Özellikle şu durumlarda kullanılır:
+Dosyaya yazmak (file storage): Nesnenin son halini bir .json, .xml veya .bin dosyasına kaydetmek.
+Veri transferi (networking): Bir nesneyi istemci-sunucu arasında göndermek (örneğin Web API'lerde JSON formatında veri).
+Veritabanına kayıt: Nesneyi JSON formatında bir sütunda saklamak.
+Cache sistemleri: Bir nesneyi serialize edip RAM’de veya disk cache’te saklamak.
+Uygulama durumunu korumak: Program kapanıp açıldığında kaldığı yerden devam edebilmek için.
+
+Niçin Kullanılır?
+Serialization sayesinde:
+Veriler ortamlar arası geçiş yapabilir (örneğin bir uygulamadan başka bir uygulamaya veri aktarımı).
+Nesneler diskte saklanabilir, daha sonra tekrar belleğe alınabilir (bu işleme deserialization denir).
+Farklı platformlar arasında dil bağımsız iletişim sağlanır (örneğin: bir C# backend’ten JSON olarak veri gönderilip, bir JavaScript frontend’te okunabilir).
+
+C# ÖRNEĞİ SERIALIZATION
+using System.Text.Json;
+
+public class Person
+{
+    public string Name { get; set; }
+    public int Age { get; set; }
+}
+
+// Serialization
+var person = new Person { Name = "Atalay", Age = 24 };
+string json = JsonSerializer.Serialize(person);
+
+// Deserialization
+Person newPerson = JsonSerializer.Deserialize<Person>(json);
+
+KULLANILAN FORMATLAR
+| Format | Açıklama                                                   |
+| ------ | ---------------------------------------------------------- |
+| JSON   | Web API'lerde en yaygın kullanılan format                  |
+| XML    | Eski sistemlerde hâlâ yaygın                               |
+| Binary | Daha küçük boyut, daha hızlı ama insan tarafından okunamaz |
+| CSV    | Basit veri yapılarında                                     |
+
+Deserialization Nedir?
+Deserialization (Serileştirilmiş veriyi nesneye dönüştürme), düz bir veri formatında (örneğin JSON, XML, Binary) saklanan/verilen bilgiyi orijinal nesne haline geri döndürme işlemidir.
+
+Yani:
+Serialization: Nesne → JSON/XML/Binary
+Deserialization: JSON/XML/Binary → Nesne
+
+Amacı Nedir?
+Amaç, başka yerden gelen, saklanan ya da taşınan veriyi tekrar programda çalışabilecek bir nesne haline getirmektir.
+Yani:
+🧾 "Veri olarak gelen şeyi"
+🔧 "Kullanılabilir bir yapıya"
+dönüştürmektir.
+
+❗️Neden Kullanılır?
+Serialization bir ara formattır; sadece saklama veya gönderme için işe yarar.
+Ama bu veriyle işlem yapabilmek için onu tekrar canlı bir nesneye dönüştürmen gerekir. İşte bu noktada deserialization devreye girer.
+
+Neden Yaratıldı?
+Çünkü:
+Bilgi taşınırken sadece düz metin olabilir (örneğin JSON).
+Ama program bu metinle çalışamaz. Nesne gerekir.
+O yüzden bu düz metni tekrar belleğe, anlamlı yapıya otomatik olarak çevirmek gerekiyor.
+
+C# JSON Örneği
+1. JSON Veri:
+{
+  "Name": "Atalay",
+  "Age": 24
+}
+2. C# Nesne:
+public class Person
+{
+    public string Name { get; set; }
+    public int Age { get; set; }
+}
+3. Deserialization:
+string json = File.ReadAllText("person.json");
+Person p = JsonSerializer.Deserialize<Person>(json);
+Console.WriteLine($"Ad: {p.Name}, Yaş: {p.Age}");
+
+NERELERDE KULLANILIR
+Nerelerde Görülür?
+Web API’den gelen JSON veriyi nesneye çevirme.
+Dosyaya kaydedilmiş nesneleri tekrar açma.
+Network’ten gelen mesajları nesneye dönüştürme.
+Yapay zeka veya oyun verilerini geri yükleme.
+Otomatik form doldurma (önceki bilgilerin nesneye aktarımı).
+
+ÖZETLE
+| Süreç               | Amaç                                                 |
+| ------------------- | ---------------------------------------------------- |
+| Serialization       | Nesneyi taşınabilir/saklanabilir hale getirmek       |
+| **Deserialization** | **Veriyi programda işlenebilir nesneye dönüştürmek** |
+
+
+SERIALIZATION ORNEGI
+
+using System.Text.Json;
+using System.Xml.Serialization;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; //GENEL AUTO VE JSON OLANLAR İÇİN YAZIM STİLİ.
+});
+
+var app = builder.Build();
+
+var samplePerson = new Person { UserName = "Alice", UserAge = 30 };
+
+app.MapGet("/", () => "Hello World!");
+
+app.MapGet("/manual-json", () =>
+{
+    var jsonString = JsonSerializer.Serialize(samplePerson);
+    return TypedResults.Text(jsonString, "application/json");
+});
+
+app.MapGet("/custom-serializer", () =>
+{
+    var options = new JsonSerializerOptions
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+    };
+    var customJsonString = JsonSerializer.Serialize(samplePerson, options);
+    return TypedResults.Text(customJsonString, "application/json");
+});
+
+app.MapGet("/json", () =>{
+   return TypedResults.Json(samplePerson);
+});
+
+app.MapGet("/auto", () =>
+{
+    return samplePerson;
+});
+
+app.MapGet("/xml", () =>
+{
+    var xmlSerializer = new XmlSerializer(typeof(Person));
+    var stringWriter = new StringWriter();
+    xmlSerializer.Serialize(stringWriter, samplePerson);
+    var xmlOutput = stringWriter.ToString();
+    return TypedResults.Text(xmlOutput, "application/xml");
+});
+
+
+app.Run();
+    
+public class Person
+{
+    public string UserName { get; set; }
+    public int UserAge { get; set; }
+}
+
+1)builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase; //GENEL AUTO VE JSON OLANLAR İÇİN YAZIM STİLİ.
+});
+
+👉 Ne yapıyor?
+JSON verilerini auto şekilde düzenlerken bir yazım düzeni sağlıyor.
+
+2) app.MapGet("/manual-json", ...)
+var jsonString = JsonSerializer.Serialize(samplePerson);
+return TypedResults.Text(jsonString, "application/json");
+
+👉 Ne yapıyor?
+samplePerson nesnesini elle JSON formatına çeviriyor (Serialize).
+Sonra bu JSON string’i, Text olarak geri döndürüyor.
+application/json content type'ı elle veriliyor.
+🧠 Bu yöntem, elle serialization yapmaktır.
+
+3) app.MapGet("/custom-serializer", ...)
+var options = new JsonSerializerOptions
+{
+    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+};
+👉 Ne yapıyor?
+JSON içindeki property adlarını snake_case yapıyor.
+Örneğin FirstName → first_name gibi.
+Daha özelleştirilmiş bir JSON istiyorsan bu seçeneklerle oynarsın.
+
+4) app.MapGet("/json", ...) -->>>auto ile dönen veri aslında TypedResults.Json(...) ile aynıdır. Sadece sen yazmazsın, framework senin yerine yapar. Performans farkı da yok denecek kadar azdır.
+return TypedResults.Json(samplePerson);
+
+👉 Ne yapıyor?
+samplePerson nesnesini otomatik olarak JSON formatında döndürüyor.
+application/json content type'ı otomatik.
+System.Text.Json kullanıyor.
+Daha kısa ve temiz bir yöntem!
+
+5) app.MapGet("/auto", ...)-->>>auto ile dönen veri aslında TypedResults.Json(...) ile aynıdır. Sadece sen yazmazsın, framework senin yerine yapar. Performans farkı da yok denecek kadar azdır.
+return samplePerson;
+
+En sade yöntem! Peki burada ne oluyor?
+Minimal API'de ASP.NET Core, dönen değerin türüne bakıyor.
+Geriye bir class döndürdüğünü görünce, otomatik olarak JSON'a serialize ediyor.
+Yani aslında JsonSerializer.Serialize() işlemini arkada kendi yapıyor.
+Ayrıca Content-Type: application/json başlığını da otomatik ayarlıyor.
+
+💡 Sonuç:
+Sen hiçbir şey yazmadan ASP.NET Core diyor ki:
+“Bu bir nesne, ben bunu JSON yapıp yollayayım!”
+
+6) app.MapGet("/xml", ...)
+
+Ne yapıyor?
+samplePerson nesnesini XML formatına çeviriyor.
+JSON değil, eski sistemlerle konuşmak istiyorsan veya XML isteyen bir uygulamaya veri gönderiyorsan kullanılır.
+
+Özetle: Hangi Yol Ne Zaman?
+| Endpoint             | Ne Yapıyor?                     | Ne Zaman Kullanılır?                         |
+| -------------------- | ------------------------------- | -------------------------------------------- |
+| `/manual-json`       | Elle JSON’a çeviriyor           | Özelleştirilmiş çıktılarda                   |
+| `/custom-serializer` | snake\_case gibi ayarlarla JSON | API dışa açık ve format kontrolü isteniyorsa |
+| `/json`              | JSON olarak döner (kısa yol)    | Çoğu API için yeterli                        |
+| ✅ `/auto`            | Her şeyi **otomatik** yapar     | En sade yol, hızlı geliştirme için ideal   |
+| `/xml`               | XML çıktısı üretir              | XML kullanan sistemlerle çalışırken          |
+
+.NET'te Serileştirme (Serialization) Uygulaması
+🔧 Manuel JSON Serileştirme
+JsonSerializer.Serialize yöntemi kullanılarak geliştiriciler, özel gereksinimler (örneğin, özel adlandırma kuralları) için JSON serileştirmesini manuel olarak kontrol edebilirler.
+Bu işlem, JsonSerializerOptions aracılığıyla gerçekleştirilir.
+
+⚙️ Otomatik JSON Serileştirme
+ASP.NET Core ile birlikte, sadece bir nesne döndürerek JSON serileştirme otomatik hale getirilebilir.
+Framework, bu nesneyi varsayılan olarak JSON formatına çevirir. Bu yöntem, açıkça serileştirme kodu yazma ihtiyacını ortadan kaldırarak geliştirme sürecini sadeleştirir.
+
+🛠️ Özel Serileştirme Ayarları
+Özel ayarlar, geliştiricilerin uygulama genelinde özellik (property) adlandırma kurallarını standartlaştırmasını sağlar.
+Örneğin, ASP.NET Core'da global bir property adlandırma politikası belirlemek, birden fazla route (yol) arasında tutarlılığı korur. Aynı zamanda, gerektiğinde route'a özel ayarlarla esneklik sağlanabilir.
+
+📝 XmlSerializer ile XML Serileştirme
+.NET'te XML serileştirme, XmlSerializer sınıfı kullanılarak gerçekleştirilir. Bu sınıf, nesne verilerini XML formatında yakalar.
+JSON serileştirmeye kıyasla daha karmaşık olsa da, XML serileştirme verinin biçimlendirilmesi üzerinde daha fazla kontrol sağlar. Bu da XML gerektiren sistemlerle uyumluluğu garanti eder.
