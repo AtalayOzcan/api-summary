@@ -243,3 +243,141 @@ Framework, bu nesneyi varsayılan olarak JSON formatına çevirir. Bu yöntem, a
 📝 XmlSerializer ile XML Serileştirme
 .NET'te XML serileştirme, XmlSerializer sınıfı kullanılarak gerçekleştirilir. Bu sınıf, nesne verilerini XML formatında yakalar.
 JSON serileştirmeye kıyasla daha karmaşık olsa da, XML serileştirme verinin biçimlendirilmesi üzerinde daha fazla kontrol sağlar. Bu da XML gerektiren sistemlerle uyumluluğu garanti eder.
+
+
+# 📘 .NET’te Deserialization – Giriş, Kodlar ve Özet Notlar
+
+📅 Tarih: 2025-08-04
+
+## 🎯 Giriş: Deserialization Nedir?
+
+Deserialization, saklanan veya iletilen verilerin tekrar program içinde kullanılabilir nesnelere dönüştürülmesidir. Özellikle:
+
+- Kullanıcı tercihleri,
+- Ayarlar,
+- API'den gelen veri gibi
+
+kalıcı verilerin geri yüklenmesi için kritik önemdedir.
+
+---
+
+## 🔁 .NET’te Deserialization Süreci
+
+- **Serialization**: Nesneleri JSON, XML, binary gibi biçimlere çevirme işlemidir.
+- **Deserialization**: Bu biçimlerden tekrar nesne haline getirme işlemidir.
+
+---
+
+## 🔖 Yaygın Formatlar
+
+| Format | Açıklama |
+|--------|----------|
+| JSON   | Web için idealdir, okunabilir, esnek ve yaygın |
+| XML    | Hiyerarşik veri yapıları için kullanılır, yapılandırma dosyalarında tercih edilir |
+| Binary | Büyük verilerde hızlıdır, ancak güvenlik açısından dikkat gerektirir |
+
+---
+
+## 🛠️ Pratik Uygulama Yöntemleri
+
+- JSON deserialization için System.Text.Json veya Newtonsoft.Json kullanılır.
+- HttpContext.Request.ReadFromJsonAsync<T>() ile manuel deserialization yapılabilir.
+- JsonSerializerOptions ile özelleştirme mümkündür:
+  - PropertyNamingPolicy
+  - UnmappedMemberHandling
+  - PropertyNameCaseInsensitive
+
+---
+
+## ✅ ASP.NET Core Empty Template – Örnek Kodlar
+
+Program.cs içinde deserialization için örnek endpoint’ler:
+
+```csharp
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.MapGet("/", () => "Hello World!");
+
+app.MapPost("/auto", (Person personFromClient) => {
+    return TypedResults.Ok(personFromClient);
+});
+
+app.MapPost("/json", async (HttpContext context) =>
+{
+    var person = await context.Request.ReadFromJsonAsync<Person>();
+    return TypedResults.Ok(person);
+});
+
+app.MapPost("/custom", async (HttpContext context) =>
+{
+    var options = new JsonSerializerOptions
+    {
+        UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+    };
+    var person = await context.Request.ReadFromJsonAsync<Person>(options);
+    return TypedResults.Ok(person);
+});
+
+app.Run();
+
+public class Person
+{
+    required public string UserName { get; set; }
+    public int? UserAge { get; set; }
+}
+```
+
+---
+
+## 📤 Test JSON Örnekleri
+
+Geçerli:
+{
+  "userName": "Mert",
+  "userAge": 25
+}
+
+Hatalı (/custom endpoint'inde):
+{
+  "userName": "Mert",
+  "userAge": 25,
+  "extra": "not allowed"
+}
+
+---
+
+## ⚠️ Dikkat Edilmesi Gerekenler
+
+1. Veri Doğrulama
+- Eksik veya hatalı veri geldiğinde:
+  - int? gibi nullable tiplerle önlem alınabilir.
+  - required keyword’ü ile zorunlu alanlar belirlenebilir.
+
+2. Güvenlik
+- Binary deserialization özellikle tehlikelidir.
+- JSON verisi dış kaynaklıysa:
+  - UnmappedMemberHandling.Disallow gibi sıkı kurallar kullanılmalı.
+  - Gelen veriler DTO ile izole edilmelidir.
+
+---
+
+## 🔍 Geliştirme Önerileri
+
+- FluentValidation ile veri doğrulama katmanı ekle
+- Results.Problem() ile anlamlı hata mesajları döndür
+- Giriş verisini loglama/middleware ile analiz et
+
+---
+
+## 🧩 Sonuç
+
+.NET ortamında deserialization:
+
+- Verinin güvenli, esnek ve anlamlı bir şekilde işlenmesini sağlar.
+- JSON, XML, Binary gibi farklı veri formatlarına uyumludur.
+- Web API’lerde model binding veya manuel deserialization ile kolaylıkla uygulanabilir.
+- Geliştirici, yapılandırma ve güvenlik konularında dikkatli davrandığında, deserialization veri işleme altyapısının temel yapı taşı olur.
