@@ -1,0 +1,483 @@
+ASP.NET Core’da Middleware’e Giriş
+1. Giriş
+ASP.NET Core’da middleware (ara yazılım), gelen HTTP isteklerini karşılayan ve işleyen yazılım bileşenlerinden oluşan yapılandırılmış bir zincirdir. Bu bileşenler, isteği adım adım işleyerek uygulama mantığına ulaşmasını ve yanıtın tekrar istemciye dönmesini sağlar. Her middleware’in belirli bir sorumluluğu vardır; örneğin loglama, kimlik doğrulama, hata yönetimi veya yönlendirme.
+Bu katmanlı yapı sayesinde uygulamalar daha modüler, kolay yönetilebilir ve güvenli hale gelir.
+
+2. Middleware Nedir?
+Middleware, istemciden gelen bir HTTP isteğini alır, belirli bir işlevi yerine getirir ve ardından isteği bir sonraki middleware’e iletir.
+Bu yapı sayesinde "sorumlulukların ayrılması (separation of concerns)" ilkesi uygulanır; her middleware sadece kendi görevine odaklanır:
+
+Loglama Middleware’i: Kullanıcı etkileşimlerini ve istek bilgilerini kaydeder.
+Kimlik Doğrulama Middleware’i: Kullanıcının oturum bilgilerini kontrol eder, gerekli değilse isteği durdurur.
+Yetkilendirme Middleware’i: Kullanıcının belirli kaynaklara erişim izni olup olmadığını denetler.
+Statik Dosya Middleware’i: Görseller veya CSS gibi sabit içerikleri sunar.
+Yönlendirme Middleware’i: İsteği uygun denetleyiciye (controller) yönlendirir.
+Bu sıralı işleyişe middleware pipeline (ara yazılım işlem hattı) adı verilir.
+
+3. Middleware Pipeline (İşlem Hattı) Nasıl Çalışır?
+Middleware pipeline, bir HTTP isteğinin uygulama içindeki tüm adımlardan geçmesini sağlayan zincirleme bir yapıdır.
+İstek sunucuya gelir.
+İlk middleware bileşeni isteği işler (örneğin loglama) ve bir sonraki bileşene iletir.
+İşlem bu şekilde zincir halinde devam eder.
+Uygulama mantığı çalışır ve yanıt oluşturulur.
+Yanıt aynı pipeline üzerinden geri döner ve her middleware çıkarken de işleme katılabilir (örneğin hata yönetimi veya response header ekleme).
+Middleware sırası çok kritiktir. Örneğin, kimlik doğrulama middleware’i veri erişiminden önce çalışmalı ki sadece yetkili kullanıcılar veriye ulaşabilsin.
+
+4. ASP.NET Core’da Yerleşik Middleware’ler
+ASP.NET Core, birçok yaygın senaryoyu kolayca yönetebilmeniz için yerleşik middleware bileşenleri sunar:
+
+UseAuthentication
+Kullanıcının kimliğini doğrular. Oturum açma kontrolleri bu katmanda yapılır.
+
+UseAuthorization
+Kimliği doğrulanan kullanıcının belirli kaynaklara erişimi olup olmadığını denetler.
+
+UseRouting
+İsteğin hangi denetleyiciye veya sayfaya yönlendirileceğini belirler.
+
+UseStaticFiles
+CSS, JS, görsel gibi statik dosyaların doğrudan sunulmasını sağlar.
+
+UseExceptionHandler
+Hataların yakalanması ve özel hata sayfalarının sunulması için kullanılır.
+Bu bileşenler, Startup.cs veya Program.cs içinde sırasıyla tanımlanarak çalıştırılır.
+
+5. Sonuç
+Middleware, ASP.NET Core’un temel yapı taşlarından biridir. HTTP isteklerini küçük, yönetilebilir adımlara bölerek daha anlaşılır, güvenli ve bakımı kolay uygulamalar geliştirmenize olanak tanır.
+İyi kurgulanmış bir middleware zinciri, uygulama performansını artırır.
+Güvenlik, izlenebilirlik ve hata yönetimi gibi temel konular kontrol altına alınır.
+Geliştiriciler, uygulamanın her adımını özelleştirerek ihtiyaçlara göre uyarlayabilir.
+
+🚀 Middleware Nedir?
+Middleware (ara yazılım), ASP.NET Core uygulamalarında gelen HTTP isteklerini karşılayan ve işleyen bileşenlerdir.
+Her istek uygulamaya geldiğinde, bir dizi middleware’den geçerek yanıt oluşturulur. Bu bileşenler uygulamanın güvenli, düzenli ve kolay yönetilebilir olmasını sağlar.
+
+📌 Middleware’ler Nerede Tanımlanır?
+Tüm middleware bileşenleri Startup.cs dosyasında tanımlanır. Bu dosya:
+
+Uygulamanın nasıl başlatılacağını belirler,
+
+Middleware sırasını yönetir,
+
+Hangi servislerin kullanılacağını belirtir.
+
+🔧 Yaygın Yerleşik Middleware Bileşenleri ve Kullanımı
+1. Hata Yönetimi (Exception Handling)
+Amaç: Uygulama sırasında oluşan hataları yakalayıp kullanıcıya teknik detaylar göstermeden yönlendirmek.
+
+Kullanım:
+app.UseExceptionHandler("/Home/Error");
+Hatalar olduğunda kullanıcı /Error sayfasına yönlendirilir.
+Üretim ortamında (production) önerilir.
+
+Geliştirme ortamı için:
+if (env.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+Bu, detaylı hata mesajları ve stack trace gösterir (debug için yararlıdır).
+
+2. Kimlik Doğrulama (Authentication)
+Amaç: Kullanıcının kimliğini doğrulamak (giriş yapıp yapmadığını kontrol etmek).
+
+Kullanım:
+app.UseAuthentication();
+Kullanıcı profili veya ayarları gibi güvenli alanlara erişimi kontrol eder.
+
+3. Yetkilendirme (Authorization)
+Amaç: Giriş yapmış kullanıcıların hangi kaynaklara erişebileceğini belirlemek.
+
+Kullanım:
+app.UseAuthorization();
+⚠️ Yetkilendirme kimlik doğrulamadan sonra çalışmalıdır.
+
+4. Loglama (Http Logging)
+Amaç: Her isteğin detaylarını, hata mesajlarını ve kullanıcı aktivitelerini kaydetmek.
+
+Kullanım:
+app.UseHttpLogging();
+builder.Services.AddHttpLogging(logging => { });
+Ayrıca appsettings.json dosyasına şu satır eklenmelidir:
+
+"Microsoft.AspNetCore.HttpLogging.HttpLoggingMiddleware": "Information"
+Böylece her istek konsolda görünür.
+
+🧠 Genel Bakış
+ASP.NET Core’un bu yerleşik middleware bileşenleri:
+Uygulama hatalarını yönetir (UseExceptionHandler)
+Kullanıcı kimliğini kontrol eder (UseAuthentication)
+Erişim izinlerini sınırlar (UseAuthorization)
+Olayları ve hataları kaydeder (UseHttpLogging)
+Bu bileşenler birlikte çalışarak uygulamanın güvenli, istikrarlı ve kolay yönetilebilir olmasını sağlar.
+
+Kodun İncelemesi
+app.Use(async (context, next) =>
+{
+    Console.WriteLine(context.Request.Method);
+    Console.WriteLine(context.Request.Path);
+    await next.Invoke();
+    Console.WriteLine(context.Response.StatusCode);
+});
+🧱 Kod Ne Yapar?
+Bu kod bir anonim middleware bileşeni (inline middleware) tanımlar. Şimdi adım adım açıklayalım:
+
+🟢 context.Request.Method
+Gelen HTTP isteğinin yöntemini (GET, POST, PUT, DELETE...) yazdırır.
+Örnek çıktı: GET
+
+🟢 context.Request.Path
+İsteğin hangi URL yoluna geldiğini gösterir.
+Örnek çıktı: /products/details
+
+🔁 await next.Invoke();
+Middleware zincirinde bir sonraki bileşene geçmeyi sağlar.
+Bu satır çalışmazsa, istek aşağı doğru devam etmez, yani pipeline burada durur.
+
+🔴 context.Response.StatusCode
+Yanıt üretildikten sonra, sunucunun verdiği HTTP durum kodunu gösterir.
+Örnek çıktı: 200, 404, 500
+
+🧠 Bu Middleware Ne İşe Yarar?
+Bu middleware:
+Her HTTP isteği geldiğinde, terminalde/logda isteğin detaylarını yazar.
+Uygulama bittikten sonra dönen HTTP cevabını da gösterir.
+Özellikle debug, geliştirme ve loglama aşamalarında çok faydalıdır.
+
+📌 Nerede Kullanılır?
+Program.cs veya Startup.cs içindeki middleware pipeline’da genellikle en üst sıralarda kullanılır.
+Örneğin hata ayıklarken hangi endpoint’e hangi metodla erişilmiş ve hangi durum kodu dönmüş kolayca takip edilebilir.
+
+✅ Örnek Çıktı
+GET
+/products/3
+200
+
+app.Use(async (context, next) =>
+{
+    var startTime = DateTime.Now;
+    Console.WriteLine($"Request started at: {startTime}");
+    await next.Invoke();
+    var endTime = DateTime.Now;
+    Console.WriteLine($"Request ended at: {endTime}");
+    Console.WriteLine($"Request duration: {endTime - startTime}");
+});
+      Örnek Çıktı
+GET
+/blogs
+Request started at: 6.08.2025 12:00:59
+Request ended at: 6.08.2025 12:00:59
+Request duration: 00:00:00.0377239
+200
+POST
+/blogs
+Request started at: 6.08.2025 12:01:24
+Request ended at: 6.08.2025 12:01:24
+Request duration: 00:00:00.0158829
+201
+GET
+/blogs
+Request started at: 6.08.2025 12:01:31
+Request ended at: 6.08.2025 12:01:31
+Request duration: 00:00:00.0004909
+200
+GET
+/blogs/1
+Request started at: 6.08.2025 12:01:40
+Request ended at: 6.08.2025 12:01:40
+Request duration: 00:00:00.0014303
+200
+
+
+Özel Middleware (Custom Middleware)
+🧩 Giriş
+Bu rehber, ASP.NET Core’da özel middleware (custom middleware) oluşturmayı ve uygulamayı anlatır. Ele alınan örnekler şunlardır:
+İstek loglama
+Yanıt süresini ölçme
+API anahtarı (API key) doğrulama
+
+📌 Temel Noktalar
+✅ Middleware Temelleri
+Middleware, ASP.NET Core uygulamalarında gelen HTTP isteklerini işleyen işlem hattının (pipeline) merkezinde yer alır.
+app.Use() fonksiyonu ile özel middleware tanımlanabilir.
+Bu fonksiyon bir request delegate (istek temsilcisi) belirler; bu temsilci, isteği sırasıyla işler.
+
+🛠️ Özel Middleware Örnekleri
+1. Loglama Middleware’i
+Gelen isteğin yolunu ve dönen yanıtın durum kodunu yazdırır.
+Console.WriteLine ile istekten önce ve sonra log alınır.
+
+2. Zamanlama Middleware’i
+Her isteğin ne kadar sürdüğünü ölçer.
+DateTime.Now ile işlem başlangıç zamanı alınır.
+await next() sonrası geçen süre hesaplanır ve yazdırılır.
+
+3. Koşullu Middleware – UseWhen()
+Middleware’in sadece belli şartlarda çalışması sağlanır.
+Örneğin: GET dışındaki istekler için özel işlem yapılması.
+
+4. API Anahtarı ile Erişim Kontrolü
+Belirli bir API Key değeri olan istekler kabul edilir.
+Geçersiz veya eksik API Key olanlara 401 Unauthorized yanıtı döner.
+Güvenlik amaçlı kullanılabilir.
+
+🧠 Sonuç
+Bu özel middleware örnekleri, ASP.NET Core’un yeteneklerini geliştirmenizi sağlar:
+İzleme (logging)
+Performans ölçümü (timing)
+Erişim kontrolü (security)
+Bu sayede daha güvenli, izlenebilir ve özelleştirilebilir web uygulamaları geliştirebilirsiniz.
+
+✅ ASP.NET Core – Custom Middleware (Özel Ara Yazılım) Öğretici Özeti
+📌 Neden Özel Middleware Kullanılır?
+.NET Core birçok yerleşik middleware sunar; ancak uygulamaya özel ihtiyaçlar ortaya çıktığında, geliştiricilerin kendi middleware bileşenlerini yazması gerekir. Bu sayede isteklerin nasıl işlendiğini detaylıca kontrol edebiliriz.
+
+⚙️ Middleware Nasıl Çalışır?
+Middleware’ler sırayla çalışır (pipeline).
+Her biri bir HTTP isteğini işler ve bir sonraki middleware’e aktarır (next.Invoke() ile).
+Kodun next.Invoke() öncesi, istekten önce çalışır.
+Kodun next.Invoke() sonrası, yanıt geri dönerken çalışır.
+Eğer next.Invoke() çağrılmazsa, o middleware "terminal" olur ve zincir orada kesilir.
+
+🛠️ Uygulamada 3 Özel Middleware Örneği
+1. İstek ve Yanıt Loglama Middleware’i
+app.Use(async (context, next) =>
+{
+    Console.WriteLine(context.Request.Path);          // İstek yolu
+    await next.Invoke();                              // Bir sonraki middleware'e geç
+    Console.WriteLine(context.Response.StatusCode);   // Yanıt durumu
+});
+💡 Ne yapar?
+Her istek geldiğinde yol (path) bilgisini loglar.
+Yanıt dönerken HTTP durum kodunu loglar.
+Geliştirme sırasında basit loglama için çok kullanışlıdır.
+
+2. İstek Süresi Ölçen Middleware
+app.Use(async (context, next) =>
+{
+    var startTime = DateTime.Now;
+    Console.WriteLine($"Request started at: {startTime}");
+    await next.Invoke();
+    var endTime = DateTime.Now;
+    Console.WriteLine($"Request ended at: {endTime}");
+    Console.WriteLine($"Request duration: {endTime - startTime}");
+});
+💡 Ne yapar?
+
+İstek işlenmeden önce zamanı alır.
+İşlem tamamlandıktan sonra geçen süreyi hesaplar.
+Performans analizi için kullanışlıdır.
+📌 Sıralama önemli: Bu middleware’i loglama middleware’inin üstüne koyarsan, tüm işlemlerin süresini ölçebilirsin.
+
+3. API Anahtarı ile Erişim Kontrolü (UseWhen ile Koşullu Middleware)
+//Postman içinde Headers kısmına X-Api-Key: thisIsABadPassword yazarsak, bu middleware çalışacak ve istek devam edecek.
+app.UseWhen(
+    context => context.Request.Method != "GET",
+    appBuilder => appBuilder.Use(async (context, next) =>
+    {
+        var extractedPassword = context.Request.Headers["X-Api-Key"];
+        if (extractedPassword == "thisIsABadPassword")
+        {
+            await next.Invoke();
+        }
+        else
+        {
+            context.Response.StatusCode = 401; // Unauthorized
+            await context.Response.WriteAsync("Unauthorized access");
+        }
+    })
+);
+💡 Ne yapar?
+Sadece GET olmayan isteklerde çalışır (POST, PUT, DELETE).
+Header’da gönderilen xAPIKey kontrol edilir.
+Anahtar doğruysa istek devam eder.
+Yanlışsa 401 Unauthorized döner.
+
+🛑 Not: API anahtarı doğrudan kodda tutulmamalı. Gerçek uygulamalarda çevresel değişkenler (environment variables) kullanılır.
+
+📚 Ekstra Bilgiler
+app.Use(...): Genel middleware tanımı
+app.UseWhen(...): Koşullu middleware tanımı
+context: HTTP isteği ve yanıtına ait bilgileri içerir
+next: Sonraki middleware’i temsil eder
+
+🧠 Sonuç ve Tavsiyeler
+Bu örneklerle, özel middleware yazarak:
+Basit loglama ve izleme işlemleri yapabilirsin
+Performans sürelerini analiz edebilirsin
+Güvenlik kontrolleri ekleyebilirsin (örneğin API key doğrulama)
+
+🎯 Tavsiye:
+Kodlarla deneme yap, middleware sırasını değiştir, yeni kontroller ekle. Gerçek uygulama yapısı ve davranışını daha iyi anlamanı sağlar.
+
+Bütün Kod:
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var blogs = new List<Blog>
+{
+    new Blog { Title = "First Blog", Body = "This is the body of the first blog." },
+    new Blog { Title = "Second Blog", Body = "This is the body of the second blog." }
+};
+
+app.Use(async (context, next) =>
+{
+    Console.WriteLine(context.Request.Method);
+    Console.WriteLine(context.Request.Path);
+    await next.Invoke();
+    Console.WriteLine(context.Response.StatusCode);
+});
+
+app.Use(async (context, next) =>
+{
+    var startTime = DateTime.Now;
+    Console.WriteLine($"Request started at: {startTime}");
+    await next.Invoke();
+    var endTime = DateTime.Now;
+    Console.WriteLine($"Request ended at: {endTime}");
+    Console.WriteLine($"Request duration: {endTime - startTime}");
+});
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Method == "GET")
+    {
+        Console.WriteLine("GET request detected.");
+    }
+    else if (context.Request.Method == "POST")
+    {
+        Console.WriteLine("POST request detected.");
+    }
+    else if (context.Request.Method == "PUT")
+    {
+        Console.WriteLine("PUT request detected.");
+    }
+    else if (context.Request.Method == "DELETE")
+    {
+        Console.WriteLine("DELETE request detected.");
+    }
+    else
+    {
+        Console.WriteLine("Non-GET request detected.");
+    }
+    await next.Invoke();
+});
+
+//app.Use(async (context, next) =>
+//{
+//    switch(context.Request.Method)
+//    {
+//        case "GET":
+//            Console.WriteLine("Processing GET request.");
+//            break;
+//        case "POST":
+//            Console.WriteLine("Processing POST request.");
+//            break;
+//        case "PUT":
+//            Console.WriteLine("Processing PUT request.");
+//            break;
+//        case "DELETE":
+//            Console.WriteLine("Processing DELETE request.");
+//            break;
+//        default:
+//            Console.WriteLine("Processing other request.");
+//            break;
+//    }
+//    await next.Invoke();
+//});
+//Postman içinde Headers kısmına X-Api-Key: thisIsABadPassword yazarsak, bu middleware çalışacak ve istek devam edecek.
+app.UseWhen(
+    context => context.Request.Method != "GET",
+    appBuilder => appBuilder.Use(async (context, next) =>
+    {
+        var extractedPassword = context.Request.Headers["X-Api-Key"];
+        if (extractedPassword == "thisIsABadPassword")
+        {
+            await next.Invoke();
+        }
+        else
+        {
+            context.Response.StatusCode = 401; // Unauthorized
+            await context.Response.WriteAsync("Unauthorized access");
+        }
+    })
+);
+
+//Postman içinde Headers kısmına X-Api-Key: GetRequestPassword yazarsak, bu middleware çalışacak ve istek devam edecek.
+app.UseWhen(context => context.Request.Method == "GET",
+    appBuilder => appBuilder.Use(async (context, next) =>
+    {
+        var extractedPassword = context.Request.Headers["X-Api-Key"];
+        if (extractedPassword == "GetRequestPassword")
+        {
+            await next.Invoke();
+        }
+        else
+        {
+            context.Response.StatusCode = 401; // Unauthorized
+            await context.Response.WriteAsync("Unauthorized access");
+        }
+    })
+);
+
+
+app.MapGet("/", () => "Hello World!");
+
+
+app.MapGet("/blogs", () =>
+{
+    return blogs;
+});
+
+//Read specific blogs
+app.MapGet("/blogs/{id}", (int id) =>
+{
+    if (id >= 1 && id <= blogs.Count)
+    {
+        return Results.Ok(blogs[id - 1]);
+    }
+    else
+    {
+        return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+    }
+});
+
+//Create a new blog
+app.MapPost("/blogs", (Blog blog) => {
+    blogs.Add(blog);
+    return Results.Created($"/blogs/{blogs.Count - 1}", blog);
+});
+
+//Delete a blog
+app.MapDelete("/blogs/{id}", (int id) => {
+    if (id >= 1 && id <= blogs.Count)
+    {
+        blogs.RemoveAt(id - 1);
+        return Results.NoContent(); //204 No Content? HTTP 204 durumu, bir isteğin (genelde PUT, DELETE) başarıyla işlendiğini fakat sunucunun döndürecek içeriği olmadığını belirtir.
+    }
+    else
+    {
+        return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+    }
+});
+
+//Update a blog
+app.MapPut("/blogs/{id}", (int id, Blog blog) =>
+{
+    if (id >= 1 && id <= blogs.Count)
+    {
+        blogs[id - 1] = blog; // Update the blog at the specified index
+        return Results.Ok($"Updated: {blog}");
+    }
+    else
+    {
+        return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+    }
+});
+
+app.Run();
+
+public class Blog
+{
+    public required string Title { get; set; }
+    public required string Body { get; set; }
+}
