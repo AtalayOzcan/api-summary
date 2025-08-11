@@ -1,0 +1,48 @@
+Microsoft.AspNetCore.OpenApi ve Swashbuckle.AspNetCore NuGet'leri indirilir.
+
+using Microsoft.AspNetCore.OpenApi;
+using Swashbuckle.AspNetCore;
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+ÖRNEK ROUTE => /swagger >> https://localhost:7043/swagger
+
+if (app.Environment.IsDevelopment())
+Bu koşul, uygulamanın çalışma ortamının (environment) Development olup olmadığını kontrol eder.
+ASP.NET Core uygulamalarında çalışma ortamı (Development, Staging, Production) ASPNETCORE_ENVIRONMENT ortam değişkeniyle belirlenir.
+Bu sayede, sadece geliştirme aşamasında bazı özellikleri aktif edebilirsin.
+Örnek: dotnet run ile çalışırken Development modunda olur, sunucuya yükleyince genelde Production olur.
+
+app.UseSwagger()
+Bu middleware, uygulamanın OpenAPI/Swagger JSON dökümantasyonunu sağlayan endpoint’i aktif eder.
+Varsayılan olarak /swagger/v1/swagger.json adresinde erişilebilir.
+Bu JSON, Swagger UI’nin kullanacağı ham API tanımıdır.
+
+app.UseSwaggerUI()
+Swagger UI’yi (görsel arayüz) aktif eder.
+Bu arayüz sayesinde tarayıcıdan API endpoint’lerini test edebilir, dönen sonuçları görebilirsin.
+Varsayılan olarak /swagger adresinden ulaşılır.
+
+
+app.MapGet("/blogs/{id}", (int id) =>
+{
+    if (id >= 1 && id <= blogs.Count)
+    {
+        return Results.Ok(blogs[id - 1]);
+    }
+    else
+    {
+        return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+    }
+    }).WithOpenApi(operation =>
+    {
+        operation.Parameters[0].Description = "The ID of the blog to retrieve";
+        operation.Summary = "Get a specific blog by ID";
+        operation.Description = "Returns a single blog"; 
+        return operation;
+    });
+
+
