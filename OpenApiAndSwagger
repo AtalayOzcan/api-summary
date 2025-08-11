@@ -45,4 +45,134 @@ app.MapGet("/blogs/{id}", (int id) =>
         return operation;
     });
 
+WithOpenApi(...) Nedir?
+Bu minimal API fonksiyonu, OpenAPI (Swagger) dokümantasyonunu özelleştirmeni sağlar.
+Yani endpoint’in Swagger UI üzerinde nasıl görüneceğini değiştirebilirsin.
+İçine verdiğin lambda (operation => { ... }) kısmı, OpenApiOperation nesnesini alır.
 
+operation Neyi Temsil Ediyor?
+operation, OpenAPI spesifikasyonundaki Operation Object’i temsil eder.
+Bu nesne, tek bir API endpoint’inin:
+Parametrelerini
+Açıklamasını
+Özetini
+Geri dönüş tiplerini vb. içerir.
+Swagger UI üzerinde gördüğün her endpoint’in arkasında böyle bir operation nesnesi vardır.
+
+operation.Parameters[0].Description
+Bu, endpoint’in ilk parametresine (burada {id}) açıklama ekler.
+Swagger UI’de “Parameters” bölümünde görünecek.
+Burada "The ID of the blog to retrieve" şeklinde açıklama verilmiş.
+
+operation.Summary
+Endpoint’in kısa açıklaması.
+Swagger UI’de endpoint başlığında görünür.
+Burada "Get a specific blog by ID" olarak ayarlanmış.
+
+operation.Description
+Endpoint’in uzun açıklaması.
+Swagger UI’de endpoint’in altındaki detay kısmında görünür.
+Burada "Returns a single blog" şeklinde verilmiş.
+
+4️⃣ Mantık Akışı
+MapGet → /blogs/{id} endpoint’ini tanımlar.
+WithOpenApi(...) → Swagger dokümantasyonunu özelleştirir.
+operation → Bu endpoint’in OpenAPI içindeki tanım nesnesidir.
+İçeride parametre açıklaması, kısa özet ve detay açıklama eklenir.
+return operation; → Özelleştirilmiş operation geri döner ve Swagger bunu kullanır.
+
+📌 Özet:
+operation burada Swagger/OpenAPI dokümanında bu endpoint’in nasıl görüneceğini tanımlayan nesnedir.
+Sen bu nesne üzerinde açıklama (Description), kısa başlık (Summary), parametre açıklamaları gibi bilgileri değiştirerek dokümantasyonu geliştiriyorsun.
+
+**KOD**
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.OpenApi;
+using Swashbuckle.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddEndpointsApiExplorer();  // Endpoints API keşfini etkinleştiriyoruz. Bu, API'nizin uç noktalarını keşfetmek için kullanılır.
+builder.Services.AddSwaggerGen();            // Swagger'ı ekliyoruz. Bu, API'nizin dokümantasyonunu oluşturmak için kullanılır.
+
+var app = builder.Build();
+
+var blogs = new List<Blog>
+{
+    new Blog { Title = "First Blog", Body = "This is the body of the first blog." },
+    new Blog { Title = "Second Blog", Body = "This is the body of the second blog." },
+};
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();   // Swagger'ı geliştirme ortamında kullanıyoruz. Bu, API'nizin dokümantasyonunu oluşturmak için kullanılır.
+    app.UseSwaggerUI(); // Swagger UI'yi etkinleştiriyoruz. Bu, API'nizin dokümantasyonunu görsel olarak görüntülemek için kullanılır.
+}
+
+app.MapGet("/", () => "Hello World!").ExcludeFromDescription(); // OpenApi dokümantasyonundan hariç tutmak için kullanılır.
+
+
+app.MapGet("/blogs", () =>
+{
+return blogs;
+});
+
+// Get a specific blog by ID, 
+app.MapGet("/blogs/{id}", Results<Ok<Blog>, NotFound>(int id) => //Buradaki amaç, OpenAPI dokümantasyonunda bu endpoint'in hem başarılı hem de başarısız durumlarını gösterebilmek içindir.
+{
+    if (id >= 1 && id <= blogs.Count)
+    {
+        return TypedResults.Ok(blogs[id - 1]); // ID'ler 1'den başladığı için, liste indeksini 1 azaltıyoruz. Ve TypedResults.Ok() ile başarılı sonucu döndürüyoruz.
+    }                                          // TypedResults.Ok() metodu, OpenAPI dokümantasyonunda başarılı bir yanıtı temsil eder.
+    else                                       // TypedResults genel olarak, OpenAPI dokümantasyonunda daha iyi bir deneyim sunmak için kullanılır.
+    {
+        return TypedResults.NotFound(); 
+    }
+    }).WithOpenApi(operation =>
+    {
+        operation.Parameters[0].Description = "The ID of the blog to retrieve"; // OpenAPI dokümantasyonunda parametre açıklaması eklemek için kullanılır.
+        operation.Summary = "Get a specific blog by ID";                        // OpenAPI dokümantasyonunda özet açıklama eklemek için kullanılır.
+        operation.Description = "Returns a single blog";                        // OpenAPI dokümantasyonunda detaylı açıklama eklemek için kullanılır.
+        return operation;
+    });
+
+//Create a new blog
+app.MapPost("/blogs", (Blog blog) => {
+blogs.Add(blog);
+return Results.Created($"/blogs/{blogs.Count - 1}", blog);
+});
+
+//Delete a blog
+app.MapDelete("/blogs/{id}", (int id) => {
+if (id >= 1 && id <= blogs.Count)
+{
+blogs.RemoveAt(id - 1);
+return Results.NoContent(); //204 No Content? HTTP 204 durumu, bir isteğin (genelde PUT, DELETE) başarıyla işlendiğini fakat sunucunun döndürecek içeriği olmadığını belirtir.
+}
+else
+{
+return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+}
+});
+
+//Update a blog
+app.MapPut("/blogs/{id}", (int id, Blog blog) =>
+{
+if (id >= 1 && id <= blogs.Count)
+{
+blogs[id - 1] = blog; // Update the blog at the specified index
+return Results.Ok($"Updated: {blog}");
+}
+else
+{
+return Results.NotFound(); //throw new ArgumentOutOfRangeException(nameof(id), "Blog not found");
+}
+});
+
+app.Run();
+
+public class Blog
+{
+    public required string Title { get; set; }
+    public required string Body { get; set; }
+}
