@@ -176,3 +176,251 @@ public class Blog
     public required string Title { get; set; }
     public required string Body { get; set; }
 }
+
+
+--------------------------------------------------
+
+Ne nerede oluyor? (Zincirin akışı)
+Kestrel sadece HTTP’te 5294 portunu dinliyor → app.Build() → aşağıdaki middleware’ler sırayla çalışır:
+
+Log middleware’i
+
+app.Use(async (ctx, next) => { await next(); if (ctx.Response.StatusCode >= 400) Console.WriteLine(...); });
+Sonra çalışan middleware’lerin sonucuna bakıp 400+ ise log basıyor.
+
+“HTTPS zorunlu” simülasyonu
+
+if (context.Request.Query["secure"] != "true") { 400; "Simulated HTTPS Required"; return; }
+URL’de ?secure=true yoksa hemen 400 döner ve zincir durur.
+
+Girdi doğrulama (query param: input)
+
+var input = context.Request.Query["input"];
+// sadece harf/rakam; "<script>" yasak
+input boş olabilir (izin veriyorsun) ya da tamamen harf/rakam olmalı. Aksi halde 400 + “Invalid Input”.
+
+/unauthorized için erken 401
+
+if (context.Request.Path == "/unauthorized") { 401; "Unauthorized Access"; return; }
+Bu path’e gelirse zincir burada biter.
+
+Auth simülasyonu + cookie yazma
+
+var isAuthenticated = context.Request.Query["authenticated"] == "true";
+if (!isAuthenticated) { 403; "Access Denied"; return; }
+context.Response.Cookies.Append("SecureCookie", "SecureData", new CookieOptions { HttpOnly = true, Secure = true });
+?authenticated=true yoksa 403.
+
+Varsa cookie eklemeye çalışır (not: aşağıda önemli bir uyarı var).
+
+Asenkron işlem simülasyonu
+await Task.Delay(100);
+await context.Response.WriteAsync("Processed Asynchronously\n");
+100 ms bekler ve response’a yazar (sonraki middleware’den önce yazıyor).
+
+Final (Run)
+await context.Response.WriteAsync("Final Response from Application\n");
+Eğer üstte yazı yazıldıysa (headers başladıysa) bu genelde atlanır; sen zaten HasStarted ile korumuşsun.
+
+Hızlı test senaryoları (beklenen çıktı)
+Aşağıdaki istekleri tarayıcıdan çağırabilirsin (hepsi http://localhost:5294):
+
+✅ Tam başarılı akış
+/ ?secure=true&authenticated=true&input=ABC123
+Çıktı:
+
+Processed Asynchronously
+(Final yazısı gelmez; çünkü bir önceki middleware response’u başlatmış olur.)
+
+❌ HTTPS simülasyonu yok
+/
+Çıktı: 400 – “Simulated HTTPS Required”
+Konsolda “Security Event…” log’u görülür.
+
+❌ Geçersiz input
+/?secure=true&authenticated=true&input=abc-123 (tire geçersiz)
+Çıktı: 400 – “Invalid Input”
+
+❌ Yetkisiz yol
+/unauthorized?secure=true&input=HELLO
+Çıktı: 401 – “Unauthorized Access”
+
+❌ Authentication yok
+/?secure=true&input=HELLO
+Çıktı: 403 – “Access Denied”
+
+Dikkat edilmesi gerekenler / ufak hatalar
+Secure cookie HTTP’de set edilmez
+
+Sen Kestrel’i HTTP only çalıştırıyorsun ve cookie’de Secure = true.
+HTTP’de tarayıcı bu cookie’yi yazmaz. Test için ya Secure=false yap, ya da gerçek hayatta olduğu gibi UseHttpsRedirection() + HTTPS portu aç.
+IsValidInput için using System.Linq; eksik
+input.All(char.IsLetterOrDigit) için LINQ lazım. Dosyanın başına ekle:
+
+using System.Linq;
+<script> kontrolü gereksiz
+Zaten All(char.IsLetterOrDigit) ile harf/rakam dışını yasaklamışsın; <script> hiçbir şekilde geçemez. İstersen bu ekstra check’i kaldırabilirsin.
+Asenkron middleware “önce yazıyor”
+Şu an “Processed Asynchronously” next’ten önce yazılıyor. Bu, sonraki middleware’in header/status değiştirmesini engeller. Genelde önce await next(), sonra log/ek yanıt yazmak tercih edilir.
+
+Öneri:
+app.Use(async (ctx, next) =>
+{
+    await Task.Delay(100);
+    await next(); // önce alt katmanlar
+    if (!ctx.Response.HasStarted)
+        await ctx.Response.WriteAsync("Processed Asynchronously\n");
+});
+HTTP→HTTPS için doğru yaklaşım
+Simülasyon yerine gerçek hayatta app.UseHttpsRedirection() kullanılır; eksikse ekle.
+
+Status code seçimleri
+“HTTPS Required” için 400 yerine 307/308 redirect (veya 426 Upgrade Required) daha anlamlı.
+“Unauthorized” için 401, “Forbidden” için 403 doğru (zaten öyle yapmışsın).
+
+HasStarted kontrolü
+İyi düşünmüşsün; ancak idealde tek bir middleware’in body yazması temiz olur. Diğerleri status/headers ayarlasın, body yazma işini endpoint/middleware kararıyla tek noktada tut.
+
+MapGet ile endpoint ayrıştırma
+Bazı kontrolleri sadece belirli path’lerde istiyorsan app.UseWhen / app.Map kullanarak dallandırabilirsin.
+
+Doğrulama bağlamı
+Query-string ile doğrulama/kimlik doğrulama sadece demo’da anlamlı. Gerçekte Header/Body/Token kullanılmalı (JWT, Authorization header vb.).
+
+Hata cevabı formatı
+“Invalid Input” gibi string yerine tutarlı bir JSON schema döndürmek iyi olur
+
+{ "error": "InvalidInput", "message": "Only letters and digits allowed." }
+Küçük düzenleme ile “temiz” bir versiyon (mantık aynı)
+HTTPS yönlendirme kullan
+Cookie’yi HTTPS’te set et
+
+LINQ ekle
+Asenkron middleware’de await next()’i önce çağır
+İstersen bu örneği gerçekçi bir “health” endpoint ve JSON hata gövdesi ile birlikte refactor edip göndereyim; üstüne JWT’li ufak bir auth akışı da ekleriz.
+
+using System;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Http;
+using System.Threading.Tasks;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Configure to listen on HTTP only for simplicity
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenLocalhost(5294); // HTTP only
+});
+
+var app = builder.Build();
+
+// Middleware to log security events if response status indicates an issue
+app.Use(async (context, next) =>
+{
+    await next(); // Run the next middleware first
+
+    if (context.Response.StatusCode >= 400)
+    {
+        Console.WriteLine($"Security Event: {context.Request.Path} - Status Code: {context.Response.StatusCode}");
+    }
+});
+
+// Simulated HTTPS Enforcement Middleware
+app.Use(async (context, next) =>
+{
+    // Check for a query parameter to simulate HTTPS enforcement (e.g., "?secure=true")
+    if (context.Request.Query["secure"] != "true")
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsync("Simulated HTTPS Required");
+        return;
+    }
+
+    await next();
+});
+
+// Middleware for input validation
+app.Use(async (context, next) =>
+{
+    var input = context.Request.Query["input"];
+    if (!IsValidInput(input))
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = 400;
+            await context.Response.WriteAsync("Invalid Input");
+        }
+        return;
+    }
+
+    await next();
+});
+
+// Helper method for input validation
+static bool IsValidInput(string input)
+{
+    // Checks for any unsafe characters or patterns, including "<script>"
+    return string.IsNullOrEmpty(input) || (input.All(char.IsLetterOrDigit) && !input.Contains("<script>"));
+}
+
+// Middleware for short-circuiting unauthorized access
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path == "/unauthorized")
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsync("Unauthorized Access");
+        }
+        return; // Exit middleware pipeline early if unauthorized
+    }
+    await next();
+});
+
+// Middleware for simulated authentication and secure cookies
+app.Use(async (context, next) =>
+{
+    // Simulate authentication with a query parameter (e.g., "?authenticated=true")
+    var isAuthenticated = context.Request.Query["authenticated"] == "true";
+    if (!isAuthenticated)
+    {
+        if (!context.Response.HasStarted)
+        {
+            context.Response.StatusCode = 403;
+            await context.Response.WriteAsync("Access Denied");
+        }
+        return;
+    }
+
+    context.Response.Cookies.Append("SecureCookie", "SecureData", new CookieOptions
+    {
+        HttpOnly = true,
+        Secure = true
+    });
+
+    await next();
+});
+
+// Middleware for asynchronous processing
+app.Use(async (context, next) =>
+{
+    await Task.Delay(100); // Simulate async operation
+    if (!context.Response.HasStarted)
+    {
+        await context.Response.WriteAsync("Processed Asynchronously\n");
+    }
+    await next();
+});
+
+// Final Response Middleware
+app.Run(async (context) =>
+{
+    if (!context.Response.HasStarted)
+    {
+        await context.Response.WriteAsync("Final Response from Application\n");
+    }
+});
+
+app.Run(); 
